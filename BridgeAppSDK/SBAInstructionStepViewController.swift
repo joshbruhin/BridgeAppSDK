@@ -37,6 +37,8 @@ open class SBABaseInstructionStepViewController: ORKStepViewController {
     
     @IBOutlet public weak var imageView: UIImageView?
     @IBOutlet public weak var belowImageView: UIImageView?
+    @IBOutlet weak var imageSize: NSLayoutConstraint?
+    @IBOutlet weak var belowImageSize: NSLayoutConstraint?
     
     @IBOutlet public weak var titleLabel: UILabel?
     @IBOutlet public weak var textLabel: UILabel?
@@ -76,7 +78,8 @@ open class SBABaseInstructionStepViewController: ORKStepViewController {
     }
     
     open var nextTitle: String {
-        return self.continueButtonTitle ?? (self.hasNextStep() ? Localization.buttonNext() : Localization.buttonDone())
+        return self.sbaIntructionStep?.continueButtonTitle ?? self.continueButtonTitle ?? 
+            (self.hasNextStep() ? Localization.buttonNext() : Localization.buttonDone())
     }
     
     // MARK: Navigation
@@ -132,13 +135,24 @@ open class SBABaseInstructionStepViewController: ORKStepViewController {
     
     open func setupImageView() {
         if let image = self.image {
+            
+            // setup the image
+            var imageConstraint: NSLayoutConstraint?
             if shouldShowImageBelow() {
                 self.belowImageView?.image = image
                 self.imageView?.removeFromSuperview()
+                imageConstraint = self.belowImageSize
             }
             else {
                 self.imageView?.image = image
                 self.belowImageView?.removeFromSuperview()
+                imageConstraint = self.imageSize
+            }
+            
+            // Resize the image to never stretch the image (only shrink if needed)
+            let imageSize = max(image.size.width, image.size.height)
+            if let constraint = imageConstraint {
+                constraint.constant = min(imageSize, constraint.constant)
             }
         }
         else {

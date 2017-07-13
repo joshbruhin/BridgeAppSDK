@@ -147,9 +147,9 @@ open class SBABaseScheduledActivityManager: NSObject, ORKTaskViewControllerDeleg
     open func reloadData() {
         
         // Fetch all schedules (including completed)
-        let now = Date()
+        let now = Date().startOfDay()
         let fromDate = now.addingNumberOfDays(-1 * daysBehind)
-        let toDate = now.addingNumberOfDays(daysAhead)
+        let toDate = now.addingNumberOfDays(daysAhead + 1)
         
         loadScheduledActivities(from: fromDate, to: toDate)
     }
@@ -308,7 +308,7 @@ open class SBABaseScheduledActivityManager: NSObject, ORKTaskViewControllerDeleg
      */
     @objc(scheduledActivityForTaskIdentifier:)
     open func scheduledActivity(for taskIdentifier: String) -> SBBScheduledActivity? {
-        return activities.find({ $0.taskIdentifier == taskIdentifier })
+        return activities.find({ $0.activityIdentifier == taskIdentifier })
     }
 
     
@@ -316,6 +316,10 @@ open class SBABaseScheduledActivityManager: NSObject, ORKTaskViewControllerDeleg
     
     fileprivate let offMainQueue = DispatchQueue(label: "org.sagebase.BridgeAppSDK.SBAScheduledActivityManager")
     open func taskViewController(_ taskViewController: ORKTaskViewController, didFinishWith reason: ORKTaskViewControllerFinishReason, error: Error?) {
+        
+        // syoung 07/11/2017 Kludgy work-around for locking interface orientation following showing a
+        // view controller that requires landscape orientation
+        (UIApplication.shared.delegate as? SBAAppDelegate)?.resetOrientation()
         
         // default behavior is to only record the task results if the task completed
         if reason == ORKTaskViewControllerFinishReason.completed {
@@ -354,7 +358,7 @@ open class SBABaseScheduledActivityManager: NSObject, ORKTaskViewControllerDeleg
     open func taskViewController(_ taskViewController: ORKTaskViewController, viewControllerFor step: ORKStep) -> ORKStepViewController? {
         
         // If this is the first step in an activity then look to see if there is a custom intro view controller
-        if step is ORKInstructionStep,
+        if step.stepViewControllerClass() == ORKInstructionStepViewController.self,
             let task = taskViewController.task as? ORKOrderedTask, task.index(of: step) == 0,
             let schedule = self.scheduledActivity(for: taskViewController),
             let taskRef = bridgeInfo.taskReferenceForSchedule(schedule) {
@@ -503,7 +507,14 @@ open class SBABaseScheduledActivityManager: NSObject, ORKTaskViewControllerDeleg
      @return                A new instance of a `SBATaskReference`
     */
     open func instantiateTaskViewController(for schedule: SBBScheduledActivity, task: ORKTask, taskRef: SBATaskReference) -> SBATaskViewController {
-        return SBATaskViewController(task: task, taskRun: nil)
+        let taskViewController =  SBATaskViewController(task: task, taskRun: nil)
+        
+        // Because of a bug in ResearchKit that looks at the _defaultResultSource ivar rather than 
+        // the property, this will always return the view controller as the result source.
+        // This allows us to attach a different source. syoung 07/10/2017
+        taskViewController.defaultResultSource = createTaskResultSource(for: schedule, task: taskViewController.task!, taskRef: taskRef)
+        
+        return taskViewController
     }
     
     open func instantiateActivityIntroductionStepViewController(for schedule: SBBScheduledActivity, step: ORKStep, taskRef: SBATaskReference) -> SBAActivityInstructionStepViewController? {
@@ -548,6 +559,61 @@ open class SBABaseScheduledActivityManager: NSObject, ORKTaskViewControllerDeleg
         }
         
         return (task, taskRef)
+    }
+    
+    /**
+     Create a task result source for the given schedule and task.
+     
+     @param     schedule    The schedule associated with this task
+     @param     task        The task instantiated from this schedule
+     @param     taskRef     The task reference associated with this task
+     @return                The result source to attach to this task (if any)
+     */
+    open func createTaskResultSource(for schedule:SBBScheduledActivity, task: ORKTask, taskRef: SBATaskReference? = nil) -> ORKTaskResultSource? {
+        
+        // Look at top-level steps for a subtask that might have its own schedule
+        var sources: [SBATaskResultSource] = []
+        if let navTask = task as? SBANavigableOrderedTask {
+            for step in navTask.steps {
+                if let subtaskStep = step as? SBASubtaskStep,
+                    let taskId = subtaskStep.taskIdentifier,
+                    let subschedule = self.scheduledActivity(for: taskId),
+                    let source = self.createTaskResultSource(for: subschedule, task: subtaskStep.subtask) as? SBATaskResultSource {
+                    sources.append(source)
+                }
+            }
+        }
+        
+        // Look for client data that can be used to generate a result source
+        let answerMap: [String: Any]? = {
+            if let array = schedule.clientData as? [[String : Any]] {
+                return array.last
+            }
+            return schedule.clientData as? [String : Any]
+        }()
+        
+        let hasTrackedSelection: Bool = {
+            guard let collection = (task as? SBANavigableOrderedTask)?.conditionalRule as? SBATrackedDataObjectCollection
+            else {
+                return false
+            }
+            return collection.dataStore.selectedItems != nil
+        }()
+        
+        if sources.count > 0 {
+            // If the sources count is greater than 0 then return a combo result source (even if this schedule
+            // does not have an answer map
+            return SBAComboTaskResultSource(task: task, answerMap: answerMap ?? [:], sources: sources)
+        }
+        else if answerMap != nil || hasTrackedSelection {
+            // Otherwise, if the answer map is non-nil, or there is a tracked data collection
+            // then return a result source for this task specifically
+            return SBASurveyTaskResultSource(task: task, answerMap: answerMap ?? [:])
+        }
+        else {
+            // Finally, there is no result source applicable to this task so return nil
+            return nil
+        }
     }
     
     /**
@@ -675,7 +741,7 @@ open class SBABaseScheduledActivityManager: NSObject, ORKTaskViewControllerDeleg
                     // If schedule is found then set its start/stop time and add to list to update
                     subschedule.startedOn = schedule.startedOn
                     subschedule.finishedOn = schedule.finishedOn
-                    scheduledActivities += [subschedule]
+                    scheduledActivities.append(subschedule)
                 }
             }
         }
@@ -685,8 +751,7 @@ open class SBABaseScheduledActivityManager: NSObject, ORKTaskViewControllerDeleg
     }
     
     open func didEndSurveyEarly(schedule: SBBScheduledActivity, taskViewController: ORKTaskViewController) -> Bool {
-        if let firstStepResult = taskViewController.result.results?.first as? ORKStepResult,
-            let endResult = firstStepResult.results?.find({ $0 is SBAActivityInstructionResult }) as? SBAActivityInstructionResult,
+        if let endResult = taskViewController.result.firstResult( where: { $1 is SBAActivityInstructionResult }) as? SBAActivityInstructionResult,
             endResult.didEndSurvey {
             return true
         }
@@ -1060,6 +1125,20 @@ open class SBAScheduledActivityManager: SBABaseScheduledActivityManager, SBASche
     }
 }
 
-
-
+extension ORKTaskResult {
+    
+    public func firstResult(where evaluate: (_ stepResult: ORKStepResult, _ result: ORKResult) -> Bool) -> ORKResult? {
+        guard let results = self.results as? [ORKStepResult] else { return nil }
+        for stepResult in results {
+            guard let stepResults = stepResult.results else { continue }
+            for result in stepResults {
+                if evaluate(stepResult, result) {
+                    return result
+                }
+            }
+        }
+        return nil
+    }
+    
+}
 
