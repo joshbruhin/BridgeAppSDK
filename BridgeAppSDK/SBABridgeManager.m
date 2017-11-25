@@ -161,6 +161,17 @@
 }
 
 + (void)signOutWithCompletion:(SBABridgeManagerCompletionBlock _Nullable)completionBlock {
+
+    // Remove any remote notification registrations, will only send request
+    // if notifications have been previously registered
+    [SBBComponent(SBBNotificationManager) deleteNotificationRegistrationWithCompletion:^(id notificationRegistration, NSError *error) {
+#if DEBUG
+        if (error != nil) {
+            NSLog(@"Error with signOut: %@", error);
+        }
+#endif
+    }];
+    
     [SBBComponent(SBBAuthManager) signOutWithCompletion:^(NSURLSessionTask *task, id responseObject, NSError *error) {
 #if DEBUG
         if (error != nil) {
@@ -379,6 +390,14 @@
              completionBlock(responseObject, error);
          }
      }];
+}
+
++ (void)updateRegistrationWithDeviceId:(NSString *)deviceId completion:(SBBNotificationManagerPostDeviceIdCompletionBlock)completion {
+    [SBBComponent(SBBNotificationManager) updateRegistrationWithDeviceId:deviceId completion:^(id notificationRegistration, NSError *error) {
+        if (completion) {
+            completion(notificationRegistration, error);
+        }
+    }];
 }
 
 @end

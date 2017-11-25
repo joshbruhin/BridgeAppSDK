@@ -306,6 +306,14 @@ typedef void (^SBABridgeManagerCompletionBlock)(id _Nullable responseObject, NSE
  */
 + (void)setExternalIdentifier:(NSString *)externalID completion:(SBABridgeManagerCompletionBlock _Nullable)completionBlock;
 
+/*!
+ Register device for remote notifications
+ 
+ @param deviceId the device id token that was generaged through
+         AppDelegate's didRegisterForRemoteNotificationsWithDeviceToken
+ @param completionBlock  A SBBNotificationManagerPostDeviceIdCompletionBlock to be called upon completion.
+ */
++ (void)updateRegistrationWithDeviceId:(NSString *)deviceId completion:(SBBNotificationManagerPostDeviceIdCompletionBlock)completion;
 
 #pragma mark - deprecated
 
