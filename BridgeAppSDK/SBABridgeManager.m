@@ -164,7 +164,7 @@
 
     // Remove any remote notification registrations, will only send request
     // if notifications have been previously registered
-    [SBBComponent(SBBNotificationManager) deleteNotificationRegistrationWithCompletion:^(id notificationRegistration, NSError *error) {
+    [SBBComponent(SBBNotificationManager) deleteNotificationRegistrationWithCompletion:^(id responseObject, NSError *error) {
 #if DEBUG
         if (error != nil) {
             NSLog(@"Error with signOut: %@", error);
@@ -398,6 +398,10 @@
             completion(notificationRegistration, error);
         }
     }];
+}
+
++ (void)updateRegistrationWithDeviceId:(NSString *)deviceId subscribeToTopicGuids:(NSArray *)topicGuids completion:(SBBNotificationManagerCompletionBlock)completion {
+    [SBBComponent(SBBNotificationManager) updateRegistrationWithDeviceId:deviceId subscribeToTopicGuids:topicGuids completion:completion];
 }
 
 @end
