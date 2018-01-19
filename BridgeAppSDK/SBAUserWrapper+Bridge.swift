@@ -525,7 +525,7 @@ public extension SBAUserWrapper {
     }
     
     fileprivate func updateFromUserSession(_ response: SBAUserSessionInfoWrapper) {
-        
+
         // Get the data groups from the response object
         self.dataGroups = response.dataGroups
         
@@ -540,6 +540,11 @@ public extension SBAUserWrapper {
         
         // Get the user's name
         self.createdOn = response.createdOn
+        
+        if let sessionInfo = response as? SBBUserSessionInfo {
+            // Get the user's consent status
+            self.consentStatuses = sessionInfo.consentStatuses as? [AnyHashable: SBBConsentStatus]
+        }
     }
     
     public func emailAndPasswordForExternalId(_ externalId: String) -> (String?, String?) {
@@ -629,10 +634,10 @@ extension NSDictionary: SBAUserSessionInfoWrapper {
         }
         return nil
     }
-    
 }
 
 extension SBBUserSessionInfo: SBAUserSessionInfoWrapper {
+
     var createdOn: Date {
         // If the participant hasn't signed in yet, there won't be a createdOn date in the placeholder study participant object.
         return self.studyParticipant?.createdOn ?? Date()

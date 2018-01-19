@@ -75,6 +75,11 @@ public protocol SBAUserWrapper: SBAParticipantInfo, SBBAuthManagerDelegateProtoc
     var consentSignature: SBAConsentSignatureWrapper? { get set }
     
     /**
+     * Consent statuses associated with this user.
+     */
+    var consentStatuses: [AnyHashable: SBBConsentStatus]? { get set }
+
+    /**
      * Data groups associated with this user.
      */
     var dataGroups: [String]? { get set }

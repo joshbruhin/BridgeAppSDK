@@ -239,6 +239,32 @@ public final class SBAUser: NSObject, SBAUserWrapper, SBANameDataSource, SBBAuth
         }
     }
     
+    public var consentStatuses: [AnyHashable : SBBConsentStatus]? {
+        get {
+            if let dict = syncObjectForKey(kConsentStatusesKey) as? [AnyHashable: Any] {
+                var newDict = [AnyHashable: SBBConsentStatus]()
+                for (key, element) in dict {
+                    if let data = element as? Data,
+                        let status = NSKeyedUnarchiver.unarchiveObject(with: data) as? SBBConsentStatus {
+                        
+                        newDict[key] = status
+                    }
+                }
+                return newDict
+            }
+            return nil
+        }
+        set (newValue) {
+            var newDict = [AnyHashable: Any]()
+            if let newValue = newValue {
+                for (key, status) in newValue {
+                    newDict[key] = NSKeyedArchiver.archivedData(withRootObject: status)
+                }
+            }
+            syncSetObject(newDict as AnyObject?, forKey: kConsentStatusesKey)
+        }
+    }
+    
     @available(*, deprecated)
     public var profileImage: UIImage? {
         get {
@@ -401,6 +427,7 @@ public final class SBAUser: NSObject, SBAUserWrapper, SBANameDataSource, SBBAuth
     let kConsentVerifiedKey = "isConsentVerified"
     let kEligibilityVerifiedKey = "isEligibilityVerified"
     let kSavedDataGroupsKey = "SavedDataGroups"
+    let kConsentStatusesKey = "ConsentStatuses"
     let kDataSharingEnabledKey = "isDataSharingEnabled"
     let kDataSharingScopeKey = "dataSharingScope"
     let kOnboardingStepIdentifier = "onboardingStepIdentifier"
