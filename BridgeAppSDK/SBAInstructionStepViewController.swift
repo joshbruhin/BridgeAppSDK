@@ -118,6 +118,31 @@ open class SBABaseInstructionStepViewController: ORKStepViewController {
         self.textLabel?.text = fullText
     }
     
+    var player: AVAudioPlayer?
+    
+    open override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        
+        if let audio = (self.instructionStep as? SBAInstructionStep)?.startStepAudio,
+            let audioUrl = Bundle.main.url(forResource: audio, withExtension: "mp3") {
+            do {
+                player = try AVAudioPlayer(contentsOf: audioUrl)
+                player?.play()
+            }
+            catch let error {
+                debugPrint("Error trying to load or play audio at url \(audioUrl): \(error)")
+            }
+        }
+    }
+    
+    open override func viewWillDisappear(_ animated: Bool) {
+        if player != nil {
+            player?.stop()
+            player = nil
+        }
+        super.viewWillDisappear(animated)
+    }
+    
     open func setupTitle() {
         if let title = self.step?.title {
             self.titleLabel?.text = title
@@ -270,6 +295,19 @@ open class SBAInstructionStepViewController: SBABaseInstructionStepViewControlle
         // Set up the image tint
         if let tintedImageView = self.imageView as? ORKTintedImageView {
             tintedImageView.shouldApplyTint = true
+        }
+        
+        // for iPad, increase all font sizes by 50%
+        if UIDevice.current.userInterfaceIdiom == UIUserInterfaceIdiom.pad {
+            if let progressFont = self.progressLabel?.font {
+                self.progressLabel!.font = progressFont.withSize(progressFont.pointSize * 1.5)
+            }
+            if let titleFont = self.titleLabel?.font {
+                self.titleLabel!.font = titleFont.withSize(titleFont.pointSize * 1.5)
+            }
+            if let textFont = self.textLabel?.font {
+                self.textLabel!.font = textFont.withSize(textFont.pointSize * 1.5)
+            }
         }
     }
     

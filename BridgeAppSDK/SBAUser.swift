@@ -42,10 +42,17 @@ import UserNotifications
  */
 public final class SBAUser: NSObject, SBAUserWrapper, SBANameDataSource, SBBAuthManagerDelegateProtocol {
 
-    static let shared = SBAUser()
+    public static let shared = SBAUser()
     
     lazy var profileManager: SBAProfileManagerProtocol? = {
         return SBAProfileManager.shared
+    }()
+    
+    // emm 2017-09-28 Hack to be able to access the app delegate from other than the main queue. This var
+    // is first accessed from within SBAAppDelegate's application(_:, willFinishLaunchingWithOptions:) func
+    // to make sure it gets set while on the main thread as soon as we know the delegate exists.
+    static var mainQueueAppDelegate: SBABridgeAppSDKDelegate? = {
+        return UIApplication.shared.delegate as? SBABridgeAppSDKDelegate
     }()
     
     let lockQueue = DispatchQueue(label: "org.sagebase.UserLockQueue")
